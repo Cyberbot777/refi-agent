@@ -84,3 +84,7 @@ intake-agent/
 *.tmp
 *.bak
 .~lock.*
+
+# Internal proposal documents
+Streamline Refi Multiagent Proposal.txt
+docs/REFI_AGENT_SPECIFICATION.md
