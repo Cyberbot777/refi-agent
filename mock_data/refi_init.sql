@@ -115,7 +115,8 @@ INSERT INTO refi_applications (
     current_note_rate, current_annual_mip, current_monthly_pi, current_monthly_piti, current_loan_balance,
     new_note_rate, new_annual_mip, new_monthly_pi, new_monthly_piti, new_loan_amount,
     total_closing_costs, cash_to_borrower,
-    old_borrowers, new_borrowers
+    old_borrowers, new_borrowers,
+    loan_status
 ) VALUES (
     'REFI-FHA-001', 'Michael Johnson', '123 Oak Street, Irvine, CA 92618',
     'FHA', '123-4567890', 'FHA-2024-001',
@@ -123,7 +124,8 @@ INSERT INTO refi_applications (
     6.500, 0.55, 1896.20, 2350.00, 298500.00,
     5.875, 0.55, 1768.45, 2220.00, 300000.00,
     4500.00, 250.00,
-    '["Michael Johnson"]', '["Michael Johnson"]'
+    '["Michael Johnson"]', '["Michael Johnson"]',
+    'CURRENT'
 );
 
 -- Payment history for REFI-FHA-001 (8 months, all on time)
@@ -239,7 +241,8 @@ INSERT INTO refi_applications (
     current_note_rate, current_monthly_pi, current_monthly_piti, current_loan_balance,
     new_note_rate, new_monthly_pi, new_monthly_piti, new_loan_amount,
     total_closing_costs, va_funding_fee, taxes_amount, escrow_deposits, cash_to_borrower,
-    old_borrowers, new_borrowers
+    old_borrowers, new_borrowers,
+    loan_status
 ) VALUES (
     'REFI-VA-001', 'James Thompson', '321 Veterans Way, San Diego, CA 92101',
     'VA', 'VA-2024-123456', 'VA-LOAN-001',
@@ -247,7 +250,8 @@ INSERT INTO refi_applications (
     6.750, 1947.50, 2400.00, 298000.00,
     6.000, 1798.65, 2250.00, 300000.00,
     6500.00, 2500.00, 500.00, 800.00, 0.00,  -- Recoupable: 6500-2500-500-800 = 2700
-    '["James Thompson"]', '["James Thompson"]'
+    '["James Thompson"]', '["James Thompson"]',
+    'CURRENT'
 );
 
 -- Payment history for REFI-VA-001 (9 months, all on time)

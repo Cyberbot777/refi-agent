@@ -1,10 +1,10 @@
 """
-PostgreSQL database tools for Streamline Government Refinance.
-Implements database operations against the local PostgreSQL instance.
+Minimal database tools for Streamline Government Refinance.
+The agent gets ALL loan data in one call and reasons from there.
 """
 
 import json
-from typing import Optional, List, Dict, Any
+from typing import Any
 from contextlib import contextmanager
 from datetime import date, datetime
 
@@ -50,282 +50,146 @@ def _serialize_row(row: dict) -> dict:
     return {k: _serialize_value(v) for k, v in row.items()}
 
 
-def get_refi_application(refi_id: str) -> str:
+def get_all_loan_data(refi_id: str) -> str:
     """
-    Query refinance application data from PostgreSQL.
+    Get ALL data for a refinance application in one call.
+    Returns application details, payment history, and documents.
+    
+    The agent uses this data to reason through all eligibility checks.
     
     Args:
-        refi_id: The refinance application ID (e.g., "REFI-001")
+        refi_id: The refinance application ID (e.g., "REFI-FHA-001")
     
     Returns:
-        JSON string with application data
+        JSON string with complete loan data including:
+        - application: All loan details (rates, amounts, dates, etc.)
+        - payment_history: Last 12 months of payments with summary stats
+        - documents: List of documents and what's missing
     """
+    result = {
+        "refi_id": refi_id,
+        "today": str(date.today())
+    }
+    
     with get_cursor() as cursor:
+        # Get application data
         cursor.execute("""
             SELECT 
-                refi_id,
-                borrower_name,
-                property_address,
-                existing_loan_type,
-                existing_loan_number,
-                fha_case_number,
-                va_loan_number,
-                original_closing_date,
-                first_payment_due_date,
-                current_note_rate,
-                current_annual_mip,
-                current_monthly_pi,
-                current_monthly_piti,
+                refi_id, borrower_name, property_address,
+                existing_loan_type, existing_loan_number,
+                fha_case_number, va_loan_number,
+                original_closing_date, first_payment_due_date,
+                current_note_rate, current_annual_mip,
+                current_monthly_pi, current_monthly_piti,
                 current_loan_balance,
-                new_note_rate,
-                new_annual_mip,
-                new_monthly_pi,
-                new_monthly_piti,
-                new_loan_amount,
-                new_loan_term_months,
-                total_closing_costs,
-                va_funding_fee,
-                taxes_amount,
-                escrow_deposits,
+                new_note_rate, new_annual_mip,
+                new_monthly_pi, new_monthly_piti,
+                new_loan_amount, new_loan_term_months,
+                total_closing_costs, va_funding_fee,
+                taxes_amount, escrow_deposits,
                 cash_to_borrower,
-                rate_type_current,
-                rate_type_new,
-                loan_status,
-                created_at
+                rate_type_current, rate_type_new,
+                loan_status
             FROM refi_applications 
             WHERE refi_id = %s
         """, (refi_id,))
         
-        result = cursor.fetchone()
+        app = cursor.fetchone()
         
-        if not result:
+        if not app:
             return json.dumps({
-                "error": f"No refinance application found with ID: {refi_id}",
+                "error": f"No application found with ID: {refi_id}",
                 "refi_id": refi_id
-            })
+            }, indent=2)
         
-        return json.dumps(_serialize_row(dict(result)), indent=2)
-
-
-def get_payment_history(refi_id: str) -> str:
-    """
-    Query payment history for a refinance application.
-    
-    Args:
-        refi_id: The refinance application ID
-    
-    Returns:
-        JSON string with payment history (last 12 months)
-    """
-    with get_cursor() as cursor:
+        result["application"] = _serialize_row(dict(app))
+        
+        # Get payment history
         cursor.execute("""
-            SELECT 
-                payment_date,
-                payment_amount,
-                days_late,
-                status,
-                forbearance_flag
+            SELECT payment_date, payment_amount, days_late, status, forbearance_flag
             FROM payment_history 
             WHERE refi_id = %s
             ORDER BY payment_date DESC
             LIMIT 12
         """, (refi_id,))
         
-        results = cursor.fetchall()
+        payments = cursor.fetchall()
+        payment_list = [_serialize_row(dict(p)) for p in payments]
         
-        if not results:
-            return json.dumps({
-                "refi_id": refi_id,
-                "payments": [],
-                "total_payments": 0,
-                "message": "No payment history found"
-            })
+        # Calculate payment summary stats
+        on_time = sum(1 for p in payment_list if p.get('days_late', 0) == 0)
+        late_30 = sum(1 for p in payment_list if 0 < p.get('days_late', 0) < 60)
+        late_60_plus = sum(1 for p in payment_list if p.get('days_late', 0) >= 60)
         
-        payments = [_serialize_row(dict(row)) for row in results]
-        
-        # Calculate summary statistics
-        on_time = sum(1 for p in payments if p.get('days_late', 0) == 0)
-        late_30 = sum(1 for p in payments if 0 < p.get('days_late', 0) < 60)
-        late_60_plus = sum(1 for p in payments if p.get('days_late', 0) >= 60)
-        forbearance_months = sum(1 for p in payments if p.get('forbearance_flag'))
-        
-        # Check for consecutive payments
         consecutive = 0
-        for p in payments:
+        for p in payment_list:
             if p.get('days_late', 0) <= 30:
                 consecutive += 1
             else:
                 break
         
-        return json.dumps({
-            "refi_id": refi_id,
-            "payments": payments,
-            "total_payments": len(payments),
-            "on_time_payments": on_time,
-            "late_30_payments": late_30,
-            "late_60_plus_payments": late_60_plus,
-            "consecutive_on_time": consecutive,
-            "forbearance_months": forbearance_months
-        }, indent=2)
-
-
-def get_refi_documents(refi_id: str) -> str:
-    """
-    Query documents for a refinance application.
-    
-    Args:
-        refi_id: The refinance application ID
-    
-    Returns:
-        JSON string with document list
-    """
-    with get_cursor() as cursor:
+        result["payment_history"] = {
+            "payments": payment_list,
+            "total_payments": len(payment_list),
+            "on_time": on_time,
+            "late_30_day": late_30,
+            "late_60_plus": late_60_plus,
+            "consecutive_on_time": consecutive
+        }
+        
+        # Get documents
         cursor.execute("""
-            SELECT 
-                document_type,
-                file_name,
-                verified,
-                verified_at,
-                notes
+            SELECT document_type, file_name, verified, notes
             FROM refi_documents 
             WHERE refi_id = %s
-            ORDER BY document_type
         """, (refi_id,))
         
-        results = cursor.fetchall()
+        docs = cursor.fetchall()
+        doc_list = [_serialize_row(dict(d)) for d in docs]
+        doc_types = {d['document_type'] for d in doc_list}
         
-        if not results:
-            return json.dumps({
-                "refi_id": refi_id,
-                "documents": [],
-                "message": "No documents found"
-            })
+        required = {'PAYOFF_STATEMENT', 'PAYMENT_HISTORY', 'CLOSING_DISCLOSURE',
+                    'TITLE_EVIDENCE', 'INSURANCE_DECLARATION', 'BORROWER_ID'}
+        missing = list(required - doc_types)
         
-        documents = [_serialize_row(dict(row)) for row in results]
-        
-        # Check for required document types
-        doc_types = {d['document_type'] for d in documents}
-        required_docs = {
-            'PAYOFF_STATEMENT', 'PAYMENT_HISTORY', 'CLOSING_DISCLOSURE',
-            'TITLE_EVIDENCE', 'INSURANCE_DECLARATION', 'BORROWER_ID'
+        result["documents"] = {
+            "documents": doc_list,
+            "present": list(doc_types),
+            "missing": missing
         }
-        missing = required_docs - doc_types
-        
-        return json.dumps({
-            "refi_id": refi_id,
-            "documents": documents,
-            "total_documents": len(documents),
-            "document_types_present": list(doc_types),
-            "missing_required": list(missing) if missing else []
-        }, indent=2)
+    
+    return json.dumps(result, indent=2)
 
 
-def save_refi_decision(
-    refi_id: str,
-    decision: str,
-    decision_type: str,
-    confidence_score: float,
-    reasoning: str,
-    conditions: Optional[List[str]] = None,
-    agent_name: str = "refi_decision_agent"
-) -> str:
+def save_decision(refi_id: str, decision: str, reasoning: str) -> str:
     """
-    Save a refinance decision to the decision log.
+    Save the agent's decision to the decision log.
+    NOTE: Does NOT update loan_status to avoid feedback loops.
     
     Args:
         refi_id: The refinance application ID
-        decision: APPROVED, APPROVED_WITH_CONDITIONS, MANUAL_REVIEW_REQUIRED, DENIED
-        decision_type: PREQUALIFICATION, UNDERWRITING, FINAL
-        confidence_score: 0-100 confidence percentage
-        reasoning: Explanation for the decision
-        conditions: List of conditions (if applicable)
-        agent_name: Name of the agent making the decision
+        decision: APPROVED, DENIED, or NEEDS_REVIEW
+        reasoning: The agent's explanation for the decision
     
     Returns:
-        JSON string with save confirmation
+        JSON confirmation
     """
     with get_cursor() as cursor:
         cursor.execute("""
             INSERT INTO refi_decision_log 
-            (refi_id, decision, decision_type, confidence_score, reasoning, conditions, agent_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            (refi_id, decision, decision_type, confidence_score, reasoning, agent_name)
+            VALUES (%s, %s, 'UNDERWRITING', 85, %s, 'streamline_refi_agent')
             RETURNING id, created_at
-        """, (
-            refi_id, 
-            decision, 
-            decision_type,
-            confidence_score, 
-            reasoning, 
-            json.dumps(conditions) if conditions else None,
-            agent_name
-        ))
+        """, (refi_id, decision, reasoning))
         
         result = cursor.fetchone()
         
-        # Update the application status
-        cursor.execute("""
-            UPDATE refi_applications 
-            SET loan_status = %s, updated_at = CURRENT_TIMESTAMP
-            WHERE refi_id = %s
-        """, (decision, refi_id))
+        # Note: We intentionally do NOT update loan_status here
+        # The loan_status field represents the current state of the EXISTING loan
+        # not the agent's decision about the refinance application
         
         return json.dumps({
-            "success": True,
+            "saved": True,
             "decision_id": result['id'],
-            "created_at": str(result['created_at']),
-            "message": f"Decision '{decision}' saved for {refi_id}"
+            "message": f"Decision '{decision}' recorded for {refi_id}"
         })
-
-
-def get_borrower_comparison(refi_id: str) -> str:
-    """
-    Get borrower comparison for FHA credit-qualifying determination.
-    
-    Args:
-        refi_id: The refinance application ID
-    
-    Returns:
-        JSON string with old vs new borrower information
-    """
-    with get_cursor() as cursor:
-        cursor.execute("""
-            SELECT 
-                old_borrowers,
-                new_borrowers,
-                borrower_changes,
-                change_reason
-            FROM refi_applications 
-            WHERE refi_id = %s
-        """, (refi_id,))
-        
-        result = cursor.fetchone()
-        
-        if not result:
-            return json.dumps({
-                "error": f"No application found: {refi_id}",
-                "refi_id": refi_id
-            })
-        
-        data = _serialize_row(dict(result))
-        
-        # Parse borrower arrays if they're stored as JSON strings
-        old_borrowers = data.get('old_borrowers', [])
-        new_borrowers = data.get('new_borrowers', [])
-        
-        if isinstance(old_borrowers, str):
-            old_borrowers = json.loads(old_borrowers)
-        if isinstance(new_borrowers, str):
-            new_borrowers = json.loads(new_borrowers)
-        
-        # Determine if credit-qualifying is required
-        borrowers_same = set(old_borrowers) == set(new_borrowers)
-        credit_qualifying_required = not borrowers_same and data.get('change_reason') not in ['DEATH', 'DIVORCE']
-        
-        return json.dumps({
-            "refi_id": refi_id,
-            "old_borrowers": old_borrowers,
-            "new_borrowers": new_borrowers,
-            "borrowers_same": borrowers_same,
-            "change_reason": data.get('change_reason'),
-            "credit_qualifying_required": credit_qualifying_required
-        }, indent=2)

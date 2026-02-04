@@ -35,6 +35,9 @@ sse-starlette>=1.8.0
 # Logging
 structlog>=23.2.0
 
+# PDF Generation
+reportlab>=4.0.0
+
 # AWS Bedrock AgentCore (for production deployment)
 # bedrock-agentcore>=1.0.0
 # aws-opentelemetry-distro==0.12.2
