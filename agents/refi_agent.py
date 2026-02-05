@@ -33,7 +33,7 @@ def record_decision(refi_id: str, decision: str, reasoning: str) -> str:
     """
     return save_decision(refi_id, decision, reasoning)
 
-# SYSTEM PROMPT
+
 SYSTEM_PROMPT = """You are an expert underwriter for FHA Streamline and VA IRRRL refinance loans.
 
 Your job is to analyze loan applications and determine eligibility based on government guidelines.
@@ -130,13 +130,25 @@ IMPORTANT FORMATTING RULES:
 Be thorough but concise. Show your work on calculations.
 """
 
+# AWS BEDROCK GUARDRAILS (AgentCore Production)
+GUARDRAIL_ID = None 
+GUARDRAIL_VERSION = None  
+
+
 # AGENT CREATION
 def create_agent() -> Agent:
     """Create the Streamline Refi underwriting agent."""
-    model = BedrockModel(
-        model_id="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-        region_name="us-east-1"
-    )
+    model_kwargs = {
+        "model_id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "region_name": "us-east-1"
+    }
+    
+    # Add guardrails if configured (for AgentCore production)
+    if GUARDRAIL_ID and GUARDRAIL_VERSION:
+        model_kwargs["guardrail_id"] = GUARDRAIL_ID
+        model_kwargs["guardrail_version"] = GUARDRAIL_VERSION
+    
+    model = BedrockModel(**model_kwargs)
     return Agent(
         model=model,
         system_prompt=SYSTEM_PROMPT,

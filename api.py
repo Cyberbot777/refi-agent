@@ -27,9 +27,8 @@ from pydantic import BaseModel
 from agents.refi_agent import process_application
 from tools.pdf_generator import markdown_to_pdf
 
-# ============================================================================
+
 # FastAPI App
-# ============================================================================
 
 app = FastAPI(
     title="Streamline Refi Agent",
@@ -45,9 +44,8 @@ app.add_middleware(
 )
 
 
-# ============================================================================
+
 # Models
-# ============================================================================
 
 class ProcessResponse(BaseModel):
     refi_id: str
@@ -56,9 +54,8 @@ class ProcessResponse(BaseModel):
     error: Optional[str] = None
 
 
-# ============================================================================
+
 # Endpoints
-# ============================================================================
 
 @app.get("/")
 async def root():
@@ -121,9 +118,8 @@ async def generate_pdf(refi_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
+
 # Run
-# ============================================================================
 
 if __name__ == "__main__":
     print("[API] Streamline Refi Agent")

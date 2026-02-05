@@ -1,16 +1,14 @@
 """
-Minimal database tools for Streamline Government Refinance.
-The agent gets ALL loan data in one call and reasons from there.
+Database tools for Streamline Government Refinance.
+The agent gets ALL loan data in one call.
 """
 
 import json
 from typing import Any
 from contextlib import contextmanager
 from datetime import date, datetime
-
 import psycopg2
 from psycopg2.extras import RealDictCursor
-
 from utils.config_loader import get_config
 
 
