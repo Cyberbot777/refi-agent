@@ -80,6 +80,10 @@ Thumbs.db
 # Reference Projects (Keep separate from this repo)
 intake-agent/
 
+# Eval results (regenerated on each run)
+eval_results_*.json
+eval_output.txt
+
 # Temporary files
 *.tmp
 *.bak

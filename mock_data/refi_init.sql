@@ -416,7 +416,8 @@ INSERT INTO refi_applications (
     current_note_rate, current_monthly_pi, current_monthly_piti, current_loan_balance,
     new_note_rate, new_monthly_pi, new_monthly_piti, new_loan_amount,
     total_closing_costs, va_funding_fee, taxes_amount, escrow_deposits, cash_to_borrower,
-    old_borrowers, new_borrowers
+    old_borrowers, new_borrowers,
+    loan_status
 ) VALUES (
     'REFI-VA-004', 'David Wilson', '999 Honor Drive, El Cajon, CA 92020',
     'VA', 'VA-2024-456789', 'VA-LOAN-004',
@@ -424,7 +425,8 @@ INSERT INTO refi_applications (
     7.000, 1995.91, 2200.00, 299000.00,  -- Old PITI: $2200
     6.250, 1845.00, 2700.00, 301000.00,  -- New PITI: $2700 (22.7% increase due to escrow)
     5800.00, 2300.00, 480.00, 750.00, 0.00,
-    '["David Wilson"]', '["David Wilson"]'
+    '["David Wilson"]', '["David Wilson"]',
+    'CURRENT'
 );
 
 -- Payment history for REFI-VA-004 (10 months)

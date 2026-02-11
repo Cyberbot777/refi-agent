@@ -39,8 +39,5 @@ EXPOSE 9000 8000 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command - for local development (API server)
-CMD ["python", "api.py"]
-
-# For AgentCore production deployment, uncomment below:
-# CMD ["opentelemetry-instrument", "python", "-m", "agents.refi_agent"]
+# Default command
+CMD ["opentelemetry-instrument", "python", "-m", "agents.refi_agent"]

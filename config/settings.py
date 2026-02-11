@@ -38,7 +38,7 @@ class LocalConfig(BaseConfig):
     
     # PostgreSQL
     database_type: str = "postgres"
-    database_url: str = "postgresql://refiuser:localdev@localhost:5432/streamline_refi"
+    database_url: str = "postgresql://refiuser:localdev@localhost:5432/refi_agent"
     
     # MinIO (S3-compatible) - for document storage if needed
     storage_type: str = "minio"

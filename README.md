@@ -1,119 +1,141 @@
 # Refi Agent
 
-Minimal agentic underwriter for FHA Streamline and VA IRRRL refinance loans.
+AI-powered underwriter for **FHA Streamline** and **VA IRRRL** refinance loans.
 
-## Architecture
+Built with [Strands Agents SDK](https://strandsagents.com) + Claude Sonnet on AWS Bedrock.
 
-The agent does all the reasoning. We just provide:
-- **Rules** → System prompt (from STREAMLINE_GOVT_CHECKLIST.md)
-- **Data** → One database tool
-- **Goal** → User prompt
+## How It Works
+
+The agent receives a loan application ID, fetches the data, applies government underwriting rules, and produces a structured decision — all driven by the LLM with a rules-based system prompt.
 
 ```
-┌─────────────────────────────────────────┐
-│            refi_agent.py                │
-│                                         │
-│  SYSTEM PROMPT (FHA/VA Rules)           │
-│           ↓                             │
-│      CLAUDE SONNET                      │
-│   - Fetches loan data                   │
-│   - Checks eligibility rules            │
-│   - Does calculations (NTB, etc.)       │
-│   - Makes decision                      │
-│   - Generates report                    │
-│           ↓                             │
-│      TOOLS                              │
-│   - get_loan_data(refi_id)              │
-│   - record_decision(...)                │
-└─────────────────────────────────────────┘
+User: "Analyze REFI-FHA-001"
+        │
+        ▼
+┌──────────────────────────────────┐
+│         Claude Sonnet            │
+│                                  │
+│  System Prompt                   │
+│  ├─ FHA Rules (B1, B2, B5)       │
+│  └─ VA Rules (C1-C5)             │
+│                                  │
+│  Tools                           │
+│  ├─ get_loan_data(refi_id)       │
+│  └─ record_decision(refi_id,     │
+│       decision, reasoning)       │
+└──────────────────────────────────┘
+        │
+        ▼
+  Underwriting Report
+  ├─ Loan Summary
+  ├─ Eligibility Checks (PASS/FAIL)
+  ├─ Calculations (NTB, recoupment)
+  ├─ Decision (APPROVED / DENIED / NEEDS_REVIEW)
+  └─ Next Steps
 ```
+
+## Evaluation Results
+
+**8/8 test cases correct (100% accuracy)** across FHA and VA programs:
+
+| Case | Program | Scenario | Expected | Result |
+|------|---------|----------|----------|--------|
+| REFI-FHA-001 | FHA Streamline | All checks pass | APPROVED | APPROVED |
+| REFI-FHA-002 | FHA Streamline | Insufficient seasoning + status PENDING | DENIED | DENIED |
+| REFI-FHA-003 | FHA Streamline | Status PENDING + no NTB (identical rates) | DENIED | DENIED |
+| REFI-FHA-004 | FHA Streamline | Status PENDING (all else passes) | DENIED | DENIED |
+| REFI-VA-001 | VA IRRRL | All checks pass | APPROVED | APPROVED |
+| REFI-VA-002 | VA IRRRL | NTB fail (0.40% < 0.50%) + status PENDING | DENIED | DENIED |
+| REFI-VA-003 | VA IRRRL | Recoupment fail (89.8mo > 36mo) | DENIED | DENIED |
+| REFI-VA-004 | VA IRRRL | PITI increase 22.7% > 20% trigger | NEEDS_REVIEW | NEEDS_REVIEW |
+
+Average response time: **29 seconds** per application.
 
 ## Quick Start
 
-```bash
-# 1. Start database
-docker-compose up -d postgres
+### Prerequisites
+- Python 3.12+
+- Docker (for PostgreSQL)
+- AWS credentials with Bedrock access (us-east-1)
 
-# 2. Activate environment
-source venv/Scripts/activate  # Windows
-source venv/bin/activate      # Mac/Linux
-
-# 3. Run agent (CLI)
-python -m agents.refi_agent REFI-FHA-001
-```
-
-## Test Cases
-
-| ID | Program | Description | Expected |
-|----|---------|-------------|----------|
-| REFI-FHA-001 | FHA Streamline | Good loan, all checks pass | APPROVED |
-| REFI-FHA-002 | FHA Streamline | Late payments in history | DENIED |
-| REFI-VA-001 | VA IRRRL | Good loan, all checks pass | APPROVED |
-| REFI-VA-002 | VA IRRRL | Recoupment > 36 months | DENIED |
-
-## CLI Usage
+### Setup
 
 ```bash
-# Process a single application
-python -m agents.refi_agent REFI-FHA-001
+# 1. Start the database
+docker compose up -d postgres
 
-# Process VA loan
-python -m agents.refi_agent REFI-VA-001
+# 2. Create and activate virtual environment
+python -m venv venv
+source venv/Scripts/activate    # Windows (Git Bash)
+source venv/bin/activate        # Mac/Linux
+
+# 3. Install dependencies
+uv pip install -r requirements.txt
+
+# 4. Run the agent on a test case
+PYTHONIOENCODING=utf-8 python -m agents.refi_agent REFI-FHA-001
 ```
 
-## API Usage (Optional)
+### Run the Evaluation Suite
 
 ```bash
-# Start API server
-python api.py
-
-# Process application (JSON response)
-curl http://localhost:8000/process/REFI-FHA-001
-
-# Download PDF report
-curl -o report.pdf http://localhost:8000/pdf/REFI-FHA-001
+PYTHONIOENCODING=utf-8 python -m agents.eval_agent
 ```
 
-## Files
+## Project Structure
 
 ```
 refi-agent/
 ├── agents/
-│   └── refi_agent.py          # The agent (rules in prompt)
+│   ├── refi_agent.py              # Agent + system prompt (all underwriting rules)
+│   └── eval_agent.py              # Automated evaluation harness
 ├── tools/
-│   ├── refi_database_tools.py # Data access
-│   └── pdf_generator.py       # Markdown → PDF
+│   └── refi_database_tools.py     # Data access layer (PostgreSQL)
 ├── config/
-│   └── settings.py            # Database config
-├── docs/
-│   └── STREAMLINE_GOVT_CHECKLIST.md  # Source rules
+│   └── settings.py                # Environment-aware configuration
+├── utils/
+│   └── config_loader.py           # Config helper
 ├── mock_data/
-│   └── refi_init.sql          # Test data
-├── api.py                     # Optional HTTP API
-├── docker-compose.yml         # PostgreSQL
-└── requirements.txt
+│   └── refi_init.sql              # Test data (8 loan scenarios)
+├── docs/
+│   └── STREAMLINE_GOVT_CHECKLIST.md   # Source underwriting rules
+├── docker-compose.yml             # PostgreSQL
+├── Dockerfile                     # Production container (AgentCore-ready)
+└── requirements.txt               # Python dependencies
 ```
 
-## Rules Reference
+## Underwriting Rules
 
 ### FHA Streamline (Sections B1, B2, B5)
-- **B1 Hard Stops**: FHA case number, cash ≤ $500, loan current
-- **B2 Seasoning**: 210 days since closing, 6 payments made, max 1x30 late
-- **B5 NTB**: New combined rate (note + MIP) < old combined rate
+
+| Check | Rule | Fail Action |
+|-------|------|-------------|
+| B1 - Hard Stops | Valid FHA case number, cash to borrower <= $500, loan status CURRENT | DENY |
+| B2 - Seasoning | >= 210 days since closing, >= 6 payments made, max 1x30 late / zero 60+ | DENY |
+| B5 - NTB | New combined rate (note + MIP) < old combined rate | DENY |
 
 ### VA IRRRL (Sections C1-C5)
-- **C1 Hard Stops**: VA loan number, same property, no cash out
-- **C2 Seasoning**: 210 days, 6 consecutive payments
-- **C3 NTB**: Rate reduction ≥0.50% (fixed) or ≥2.00% (ARM)
-- **C4 Recoupment**: Fees recovered in ≤36 months
-- **C5 PITI Trigger**: >20% increase requires manual review
 
-## Requirements
+| Check | Rule | Fail Action |
+|-------|------|-------------|
+| C1 - Hard Stops | Valid VA loan number, same property, no cash out, loan status CURRENT | DENY |
+| C2 - Seasoning | >= 210 days since closing, >= 6 consecutive on-time payments | DENY |
+| C3 - NTB | >= 0.50% rate reduction (fixed-to-fixed), >= 2.00% (ARM-to-fixed) | DENY |
+| C4 - Recoupment | (Recoupable costs) / monthly P&I savings <= 36 months | DENY |
+| C5 - PITI Trigger | New PITI > 20% higher than current PITI | NEEDS_REVIEW |
 
-```
-strands-agents>=0.1.0
-psycopg2-binary>=2.9.0
-reportlab>=4.0.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
-```
+## Technology Stack
+
+- **Agent Framework**: [Strands Agents SDK](https://strandsagents.com)
+- **LLM**: Claude 3.5 Sonnet v2 (via AWS Bedrock)
+- **Database**: PostgreSQL 15
+- **Deployment**: Docker, AWS Bedrock AgentCore ready
+- **Region**: us-east-1
+
+## Next Steps
+
+- [ ] Connect to production Hydra/Snowflake data source
+- [ ] Expand test cases with production loan scenarios
+- [ ] Add Bedrock Guardrails for production
+- [ ] Deploy to AWS Bedrock AgentCore
+- [ ] Add more loan programs (conventional, USDA)
