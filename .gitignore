@@ -93,6 +93,9 @@ eval_output.txt
 Streamline Refi Multiagent Proposal.txt
 docs/REFI_AGENT_SPECIFICATION.md
 
+# GitHub instructions (local copilot rules)
+.github/
+
 # Internal learning notes
 docs/FINE_TUNING_LEARNINGS.md
 
