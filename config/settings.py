@@ -79,6 +79,8 @@ class ProductionConfig(BaseConfig):
     hydra_endpoint: str = ""
     hydra_database: str = ""
     hydra_schema: str = ""
+    hydra_user: str = ""
+    hydra_password: str = ""
     
     # AWS S3
     storage_type: str = "s3"
@@ -96,6 +98,8 @@ class ProductionConfig(BaseConfig):
             hydra_endpoint=os.getenv("HYDRA_ENDPOINT", ""),
             hydra_database=os.getenv("HYDRA_DATABASE", ""),
             hydra_schema=os.getenv("HYDRA_SCHEMA", ""),
+            hydra_user=os.getenv("HYDRA_USER", ""),
+            hydra_password=os.getenv("HYDRA_PASSWORD", ""),
             s3_bucket=os.getenv("S3_BUCKET", cls.s3_bucket),
             s3_region=os.getenv("S3_REGION", cls.s3_region),
             bedrock_orchestrator_model=os.getenv("BEDROCK_ORCHESTRATOR_MODEL", cls.bedrock_orchestrator_model),

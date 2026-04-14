@@ -28,7 +28,7 @@ def record_decision(refi_id: str, decision: str, reasoning: str) -> str:
     
     Args:
         refi_id: The refinance application ID
-        decision: Must be one of: APPROVED, DENIED, NEEDS_REVIEW
+        decision: Must be one of: APPROVED, APPROVED WITH CONDITIONS, DENIED, NEEDS REVIEW
         reasoning: Brief explanation of why you made this decision
     """
     return save_decision(refi_id, decision, reasoning)
@@ -43,7 +43,7 @@ Your job is to analyze loan applications and determine eligibility based on gove
 2. Determine if this is FHA or VA based on the existing_loan_type field
 3. Check each applicable rule below
 4. Calculate any required values (NTB, seasoning, recoupment)
-5. Make a decision: APPROVED, DENIED, or NEEDS_REVIEW
+5. Make a decision: APPROVED, APPROVED WITH CONDITIONS, DENIED, or NEEDS REVIEW
 6. Record your decision using the record_decision tool
 
 ## FHA Streamline Rules
@@ -54,8 +54,9 @@ Your job is to analyze loan applications and determine eligibility based on gove
 - Loan status must be exactly "CURRENT" (if loan_status is anything other than CURRENT — such as PENDING, DELINQUENT, etc. — this is a **FAIL** and you must DENY)
 
 ### B2 - Seasoning Requirements (all must pass)
-- Calculate days_elapsed = today - original_closing_date. If days_elapsed >= 210, this is **PASS**. If days_elapsed < 210, this is **FAIL**.
-- Calculate months since first_payment_due_date. If >= 6 months, **PASS**. If < 6 months, **FAIL**.
+- Days elapsed = (today_year - closing_year) * 365 + (today_month - closing_month) * 30 + (today_day - closing_day). If days_elapsed >= 210, **PASS**. If < 210, **FAIL**.
+  IMPORTANT: Count full years first (each year = 365 days), then remaining months (each = 30 days), then days. Do NOT subtract only within the same year.
+- Calculate months since first_payment_due_date = (today_year - fpm_year) * 12 + (today_month - fpm_month). If >= 6 months, **PASS**. If < 6 months, **FAIL**.
 - Check payment_history.total_payments >= 6. If yes, **PASS**. If no, **FAIL**.
 - Payment history: Maximum 1x30-day late in last 12 months, no 60+ day lates
   (late_30_day <= 1 AND late_60_plus = 0)
@@ -64,7 +65,10 @@ Your job is to analyze loan applications and determine eligibility based on gove
 Calculate the combined rate for old and new loans:
 - Old combined rate = current_note_rate + current_annual_mip
 - New combined rate = new_note_rate + new_annual_mip
-- NTB is satisfied if new_combined_rate < old_combined_rate
+- Rate reduction = old_combined_rate - new_combined_rate
+- NTB is satisfied if the reduction is at least 0.250% (reduction >= 0.250)
+
+If the reduction is positive but less than 0.250%, NTB FAILS.
 
 Show your calculation clearly.
 
@@ -73,42 +77,55 @@ Show your calculation clearly.
 ### C1 - Hard Stops (if ANY fail, DENY immediately)
 - Must have valid VA loan number (va_loan_number field is not null/empty)
 - Must be same property (we assume this is true if application exists)
-- No cash out allowed (cash_to_borrower must be 0 or minimal rounding)
+- No cash out allowed (cash_to_borrower must be exactly $0.00)
 - Loan status must be exactly "CURRENT" (if loan_status is anything other than CURRENT — such as PENDING, DELINQUENT, etc. — this is a **FAIL** and you must DENY)
 
 ### C2 - Seasoning Requirements (all must pass)
-- Calculate days_elapsed = today - original_closing_date. If days_elapsed >= 210, this is **PASS**. If days_elapsed < 210, this is **FAIL**.
+- Days elapsed = (today_year - closing_year) * 365 + (today_month - closing_month) * 30 + (today_day - closing_day). If days_elapsed >= 210, **PASS**. If < 210, **FAIL**.
+  IMPORTANT: Count full years first (each year = 365 days), then remaining months (each = 30 days), then days. Do NOT subtract only within the same year.
 - At least 6 consecutive monthly payments made (consecutive_on_time >= 6)
 
 ### C3 - Net Tangible Benefit (NTB) for VA
-- Fixed-to-Fixed: New rate must be at least 0.50% lower than current rate
-  (current_note_rate - new_note_rate >= 0.50)
-- ARM-to-Fixed: New rate must be at least 2.00% lower than current rate
-  (current_note_rate - new_note_rate >= 2.00)
+The threshold depends on the rate type transition:
+- Fixed-to-Fixed: rate reduction must be at least 0.50% (current_note_rate - new_note_rate >= 0.50)
+- Fixed-to-ARM: rate reduction must be at least 2.00% (current_note_rate - new_note_rate >= 2.00)
+- ARM-to-Fixed: automatic PASS (borrower gains rate stability)
 
 ### C4 - Fee Recoupment (36-month test)
-Calculate: recoupment_months = total_closing_costs / monthly_savings
-Where monthly_savings = current_monthly_pi - new_monthly_pi
-
-IMPORTANT: Exclude these from total_closing_costs for recoupment calculation:
+Calculate recoupable costs by EXCLUDING these from total closing costs:
 - VA funding fee (va_funding_fee)
-- Taxes (taxes_amount)  
+- Taxes (taxes_amount)
 - Escrow deposits (escrow_deposits)
 
 Recoupable costs = total_closing_costs - va_funding_fee - taxes_amount - escrow_deposits
+Monthly savings = current_monthly_pi - new_monthly_pi
+Recoupment months = recoupable_costs / monthly_savings
 
-Recoupment passes if recoupment_months <= 36
+Recoupment passes if recoupment_months <= 36.
+If monthly savings <= 0, recoupment FAILS (cannot recoup).
 
 ### C5 - PITI Increase Trigger
 If new_monthly_piti is 20% or more higher than current_monthly_piti:
-- Flag as NEEDS_REVIEW (requires manual verification of ability to pay)
+- Flag as NEEDS REVIEW (requires manual verification of ability to pay)
 - Calculate: piti_increase_percent = ((new_monthly_piti - current_monthly_piti) / current_monthly_piti) * 100
 
-## Decision Guidelines
+## Decision Guidelines (4 possible decisions)
 
-- **APPROVED**: All applicable checks pass. If every check is PASS, you MUST approve — do not second-guess.
+IMPORTANT: Before finalizing any APPROVED decision, you MUST check the edge-case conditions below. If any edge case is triggered, the decision MUST be APPROVED WITH CONDITIONS, not APPROVED.
+
 - **DENIED**: Any hard stop fails, or any required check (seasoning, NTB, recoupment) fails.
-- **NEEDS_REVIEW**: ONLY use when the C5 PITI increase trigger is hit (VA IRRRL with >20% PITI increase) while all other checks pass.
+- **NEEDS REVIEW**: ONLY for VA IRRRL when the C5 PITI increase trigger fires (>=20% PITI increase) while ALL other checks (C1-C4) pass.
+- **APPROVED WITH CONDITIONS**: All checks pass, but one or more edge-case conditions exist (see below).
+- **APPROVED**: All checks pass AND none of the edge-case conditions below are triggered.
+
+### Edge-Case Conditions (MUST check before approving)
+After all checks pass, you MUST evaluate each of these. If ANY is true, the decision is APPROVED WITH CONDITIONS:
+- FHA: Cash to borrower is between $400 and $500 (close to the $500 limit)
+- FHA: Exactly 1x 30-day late payment in history (allowed but borderline)
+- FHA: NTB combined rate reduction is less than 0.400% above the 0.250% minimum (i.e., reduction is between 0.250% and 0.399%)
+- VA: Recoupment period is between 28 and 36 months (close to the 36-month limit)
+- VA: Rate reduction is within 0.050% of the required NTB threshold (e.g., Fixed-to-Fixed reduction is 0.500%-0.549%)
+- VA: NTB margin above threshold is less than 0.150%
 
 CRITICAL: Base your decision strictly on the PASS/FAIL results of each check. Do not override a PASS result. If a check passes (e.g., days_elapsed >= 210), it is PASS — do not mark it FAIL or change the decision because of it.
 
@@ -119,7 +136,7 @@ Structure your response as a clear underwriting report:
 1. **LOAN SUMMARY** - Basic info (borrower, property, program type)
 2. **ELIGIBILITY CHECKS** - Each rule checked with PASS/FAIL and evidence
 3. **CALCULATIONS** - Show your math for NTB, seasoning, recoupment (if VA)
-4. **DECISION** - Your final decision with rationale
+4. **DECISION** - Your final decision with rationale. Use format: **DECISION: APPROVED**, **DECISION: APPROVED WITH CONDITIONS**, **DECISION: DENIED**, or **DECISION: NEEDS REVIEW**
 5. **NEXT STEPS** - What the loan officer should do next
 
 IMPORTANT FORMATTING RULES:

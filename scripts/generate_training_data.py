@@ -1,9 +1,14 @@
-"""
-Generate fine-tuning training data for the refi-agent (v3).
+"""Generate fine-tuning training data for the refi-agent (v4).
+
+v4 changes from v3:
+  - 1000 total records (up from 600) for stronger signal
+  - Rebalanced: 30% APPROVED, 15% AWC, 45% DENIED, 10% NEEDS REVIEW
+  - Hard-stop failures weighted to ~50% of denials (bad_status, missing ID, excess cash)
+  - Fixes class imbalance: non-CURRENT loan status now ~15% of dataset
 
 Produces deterministic FHA Streamline and VA IRRRL scenarios with
 Python-computed math, validates every record, and writes JSONL files
-for Amazon Nova Micro fine-tuning on Bedrock.
+in bedrock-conversation-2024 format for Amazon Nova Micro fine-tuning.
 
 Usage:
     python -m scripts.generate_training_data [--seed 42] [--output-dir data]
@@ -43,12 +48,13 @@ def build_records(seed: int = 42):
 
 
 def to_jsonl_entry(user_prompt: str, completion: str) -> dict:
-    """Format a single record as a Bedrock fine-tuning JSONL entry."""
+    """Format a single record as a Bedrock fine-tuning JSONL entry (bedrock-conversation-2024)."""
     return {
-        "system": SYSTEM_PROMPT,
+        "schemaVersion": "bedrock-conversation-2024",
+        "system": [{"text": SYSTEM_PROMPT}],
         "messages": [
-            {"role": "user", "content": user_prompt},
-            {"role": "assistant", "content": completion},
+            {"role": "user", "content": [{"text": user_prompt}]},
+            {"role": "assistant", "content": [{"text": completion}]},
         ],
     }
 
@@ -62,7 +68,7 @@ def write_jsonl(entries: list[dict], path: Path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate refi-agent fine-tuning data (v3)")
+    parser = argparse.ArgumentParser(description="Generate refi-agent fine-tuning data (v4)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     parser.add_argument("--output-dir", type=str, default="data", help="Output directory (default: data)")
     args = parser.parse_args()
@@ -98,8 +104,8 @@ def main():
 
     # Write files
     output_dir = Path(args.output_dir)
-    train_path = output_dir / "refi_training_v3.jsonl"
-    val_path = output_dir / "refi_validation_v3.jsonl"
+    train_path = output_dir / "nova" / "refi_training_v4_nova.jsonl"
+    val_path = output_dir / "nova" / "refi_validation_v4_nova.jsonl"
 
     write_jsonl(train_entries, train_path)
     write_jsonl(val_entries, val_path)
@@ -115,9 +121,13 @@ def main():
         assert len(lines) == expected, f"{path}: expected {expected} lines, got {len(lines)}"
         for i, line in enumerate(lines):
             obj = json.loads(line)
+            assert "schemaVersion" in obj, f"{path} line {i}: missing 'schemaVersion'"
+            assert obj["schemaVersion"] == "bedrock-conversation-2024", f"{path} line {i}: wrong schema"
             assert "system" in obj, f"{path} line {i}: missing 'system'"
+            assert isinstance(obj["system"], list), f"{path} line {i}: system must be list"
             assert "messages" in obj, f"{path} line {i}: missing 'messages'"
             assert len(obj["messages"]) == 2, f"{path} line {i}: expected 2 messages"
+            assert isinstance(obj["messages"][0]["content"], list), f"{path} line {i}: content must be list"
 
     print("\nSanity check passed. Done!")
 

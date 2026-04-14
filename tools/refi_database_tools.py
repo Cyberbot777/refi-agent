@@ -15,7 +15,7 @@ from utils.config_loader import get_config
 def get_connection():
     """Create a database connection using configuration."""
     config = get_config()
-    return psycopg2.connect(config.database_url)
+    return psycopg2.connect(config.database_url) #update with hydra connection
 
 
 @contextmanager
