@@ -1,9 +1,12 @@
-"""Launch a Bedrock fine-tuning job for refi-agent Nova Micro.
+"""Launch a Bedrock fine-tuning job for refi-agent Nova Lite.
 
-v6 changes:
-  - 4 epochs (up from 2 in v5) for better decision accuracy
-  - Same LR (5e-5), batch size 1
-  - Same training/validation data (already in S3)
+Nova Lite v2:
+  - Refined system prompt: explicit decision priority ordering, CRITICAL rule
+    that failed checks cannot be edge cases, concrete DENIED vs AWC examples.
+  - v7 training data: 3000 records with 30% near-miss DENIED scenarios
+    (AWC-like numbers but clear failure on another check).
+  - Same hyperparams: 4 epochs, LR 5e-5, batch 1.
+  - Targeting the AWC/DENIED boundary confusion from v1 (83%).
 
 Usage:
     python scripts/launch_fine_tuning.py
@@ -21,14 +24,14 @@ import boto3
 
 # ── Config ──────────────────────────────────────────────────────────────────
 REGION = "us-east-1"
-JOB_NAME = "refi-agent-nova-micro-v8"
-MODEL_NAME = "refi-agent-nova-micro-v8"
-BASE_MODEL = "amazon.nova-micro-v1:0:128k"
+JOB_NAME = "refi-agent-nova-lite-v2"
+MODEL_NAME = "refi-agent-nova-lite-v2"
+BASE_MODEL = "amazon.nova-lite-v1:0:300k"
 ROLE_ARN = "arn:aws:iam::025066260073:role/service-role/bedrock-finetuning-role"
 
-S3_TRAIN = "s3://kindlending-bedrock-finetuning/refi-v4-nova/train/refi_training_v4_nova.jsonl"
-S3_VALID = "s3://kindlending-bedrock-finetuning/refi-v4-nova/validation/refi_validation_v4_nova.jsonl"
-S3_OUTPUT = "s3://kindlending-bedrock-finetuning/refi-v8-nova/output/"
+S3_TRAIN = "s3://kindlending-bedrock-finetuning/refi-v7-nova-lite/train/refi_training_v7_nova_lite.jsonl"
+S3_VALID = "s3://kindlending-bedrock-finetuning/refi-v7-nova-lite/validation/refi_validation_v7_nova_lite.jsonl"
+S3_OUTPUT = "s3://kindlending-bedrock-finetuning/refi-nova-lite-v2/output/"
 
 HYPER_PARAMS = {
     "epochCount": "4",
@@ -126,8 +129,9 @@ def deploy(client):
         modelDeploymentName=deploy_name,
         modelArn=model_arn,
         description=(
-            "On-demand inference for refi-agent Nova Micro v4. "
-            "LR=1e-5, 3 epochs, 540 train / 60 validation records."
+            "On-demand inference for refi-agent Nova Lite v2. "
+            "LR=5e-5, 4 epochs, v7 data with near-miss DENIED scenarios "
+            "and refined decision priority prompt."
         ),
     )
     deployment_arn = resp["customModelDeploymentArn"]
@@ -163,7 +167,7 @@ def smoke_test(client_rt, deployment_arn=None):
             return
 
     # Load exact first training record
-    with open("data/nova/refi_training_v4_nova.jsonl") as f:
+    with open("data/nova/refi_training_v7_nova_lite.jsonl") as f:
         rec = json.loads(f.readline())
 
     system_prompt = rec["system"][0]["text"]
@@ -194,13 +198,12 @@ def smoke_test(client_rt, deployment_arn=None):
     print(f"Input tokens:  {usage.get('inputTokens', '?')}")
     print(f"Output tokens: {usage.get('outputTokens', '?')}")
 
-    # Format checks
+    # Format checks — generic markers that work for any decision class
     markers = [
-        "**DECISION: DENIED**",
-        "**B1 Hard Stops: FAIL**",
-        "**B2 Seasoning:",
-        "**B5 Net Tangible Benefit:",
-        "Loan Status: PENDING - FAIL",
+        "**DECISION:",
+        "**LOAN SUMMARY**",
+        "PASS",
+        "**NEXT STEPS**",
     ]
     print("\n--- FORMAT CHECK ---")
     passed = 0
@@ -221,15 +224,15 @@ def smoke_test(client_rt, deployment_arn=None):
     print(f"  Format score: {passed}/{len(markers)}")
 
     if passed == len(markers):
-        print("\n>>> FINE-TUNING IS WORKING!")
+        print("\n>>> FORMAT LOOKS GOOD — fine-tuning is working!")
     elif passed > 0:
-        print("\n>>> PARTIAL - fine-tuning has some effect")
+        print("\n>>> PARTIAL — fine-tuning has some effect")
     else:
-        print("\n>>> FINE-TUNING NOT EFFECTIVE - still base model output")
+        print("\n>>> FORMAT NOT LEARNED — check training data")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Manage refi-agent fine-tuning v6")
+    parser = argparse.ArgumentParser(description="Manage refi-agent fine-tuning (Nova Lite v2)")
     parser.add_argument("--check", action="store_true", help="Check job status")
     parser.add_argument("--job-arn", help="Specific job ARN to check")
     parser.add_argument("--deploy", action="store_true", help="Deploy the fine-tuned model")

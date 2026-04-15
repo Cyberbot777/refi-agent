@@ -21,7 +21,7 @@ import boto3
 # ─── CONFIG ─────────────────────────────────────────────────────────────────────
 
 CLAUDE_MODEL = "us.anthropic.claude-sonnet-4-20250514-v1:0"
-TRAINING_DATA = "data/nova/refi_training_v4_nova.jsonl"
+TRAINING_DATA = "data/nova/refi_training_v7_nova_lite.jsonl"
 EVAL_DATE = "2026-02-10"  # Must match scenarios.py EVAL_DATE
 
 # Extract SYSTEM_PROMPT from refi_agent.py without importing (avoids psycopg2)
