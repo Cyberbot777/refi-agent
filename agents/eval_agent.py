@@ -51,7 +51,7 @@ def clear_old_decisions():
 
 def run_eval():
     """Run the agent against all test cases and grade results."""
-    from agents.refi_agent import process_application
+    from agents.claude_refi_agent import process_application
 
     cases = sorted(EXPECTED.keys())
 

@@ -75,7 +75,7 @@ source venv/bin/activate        # Mac/Linux
 pip install -r requirements.txt
 
 # 4. Run the Claude agent
-PYTHONIOENCODING=utf-8 python -m agents.refi_agent REFI-FHA-001
+PYTHONIOENCODING=utf-8 python -m agents.claude_refi_agent REFI-FHA-001
 
 # 5. Run the Nova Lite agent
 PYTHONIOENCODING=utf-8 python -m agents.novalite_refi_agent REFI-FHA-001
@@ -108,7 +108,7 @@ Both agents produce identical correct results on the 8 mock data scenarios:
 ```
 refi-agent/
 ├── agents/
-│   ├── refi_agent.py              # Claude Sonnet agent (prompted, tool-calling)
+│   ├── claude_refi_agent.py        # Claude Sonnet agent (prompted, tool-calling)
 │   ├── novalite_refi_agent.py     # Nova Lite agent (fine-tuned, single call)
 │   └── eval_agent.py              # Evaluation harness
 ├── tools/

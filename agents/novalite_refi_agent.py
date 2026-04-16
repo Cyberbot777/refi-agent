@@ -4,7 +4,7 @@ Nova Lite Fine-Tuned Refinance Agent
 Uses a fine-tuned Amazon Nova Lite model for FHA Streamline / VA IRRRL
 underwriting decisions. Single inference call — no agent loop or tool-calling.
 
-Compared to the Claude Sonnet agent (refi_agent.py):
+Compared to the Claude Sonnet agent (claude_refi_agent.py):
 - ~5-7s latency vs ~29s (no tool round-trips)
 - 900-char system prompt vs 6K (rules baked into model weights)
 - 87.1% accuracy vs 100% (AWC boundary is the gap)

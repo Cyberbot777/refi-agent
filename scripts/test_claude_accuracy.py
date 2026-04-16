@@ -24,8 +24,8 @@ CLAUDE_MODEL = "us.anthropic.claude-sonnet-4-20250514-v1:0"
 TRAINING_DATA = "data/nova/refi_training_v7_nova_lite.jsonl"
 EVAL_DATE = "2026-02-10"  # Must match scenarios.py EVAL_DATE
 
-# Extract SYSTEM_PROMPT from refi_agent.py without importing (avoids psycopg2)
-_agent_src = Path("agents/refi_agent.py").read_text()
+# Extract SYSTEM_PROMPT from claude_refi_agent.py without importing (avoids psycopg2)
+_agent_src = Path("agents/claude_refi_agent.py").read_text()
 _start = _agent_src.index('SYSTEM_PROMPT = """') + len('SYSTEM_PROMPT = """')
 _end = _agent_src.index('"""', _start)
 _raw_prompt = _agent_src[_start:_end]
