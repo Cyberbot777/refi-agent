@@ -157,7 +157,7 @@ GUARDRAIL_VERSION = None
 def create_agent() -> Agent:
     """Create the Streamline Refi underwriting agent."""
     model_kwargs = {
-        "model_id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0",
         "region_name": "us-east-1"
     }
     
