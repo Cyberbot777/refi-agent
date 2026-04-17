@@ -6,7 +6,7 @@ Injects the correct evaluation date (2026-02-10) to match the
 training data's eval_date, since seasoning calculations are date-dependent.
 
 Usage:
-    python scripts/test_claude_accuracy.py [--samples N] [--verbose]
+    python tests/accuracy_test_harness.py [--samples N] [--verbose]
 """
 
 import argparse

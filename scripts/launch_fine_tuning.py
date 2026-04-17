@@ -22,7 +22,7 @@ import time
 
 import boto3
 
-# ── Config ──────────────────────────────────────────────────────────────────
+# Config 
 REGION = "us-east-1"
 JOB_NAME = "refi-agent-nova-lite-v2"
 MODEL_NAME = "refi-agent-nova-lite-v2"
@@ -113,7 +113,7 @@ def check(client, job_arn=None):
 
 def deploy(client):
     """Create an on-demand deployment for the fine-tuned model."""
-    # Find the v4 custom model
+    
     models = client.list_custom_models(nameContains=MODEL_NAME)
     matches = [m for m in models.get("modelSummaries", []) if m["modelName"] == MODEL_NAME]
     if not matches:
@@ -155,7 +155,6 @@ def deploy(client):
 def smoke_test(client_rt, deployment_arn=None):
     """Send an exact training record to the deployment and check format."""
     if not deployment_arn:
-        # Find the active v4 deployment
         bedrock = boto3.client("bedrock", region_name=REGION)
         deps = bedrock.list_custom_model_deployments()
         for d in deps.get("modelDeploymentSummaries", []):

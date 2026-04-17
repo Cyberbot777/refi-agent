@@ -13,7 +13,7 @@ D = Decimal
 EVAL = date(2026, 2, 10)
 
 
-# ─── FHA SCENARIOS ─────────────────────────────────────────────────────────────
+# FHA SCENARIOS 
 
 class TestFHADecisions:
     def test_fha001_approved(self):
@@ -262,7 +262,7 @@ class TestFHADecisions:
         assert result.decision == "DENIED"
 
 
-# ─── VA SCENARIOS ──────────────────────────────────────────────────────────────
+# VA SCENARIOS
 
 class TestVADecisions:
     def test_va001_approved(self):

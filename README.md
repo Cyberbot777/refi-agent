@@ -85,7 +85,7 @@ PYTHONIOENCODING=utf-8 python -m agents.novalite_refi_agent REFI-FHA-001
 
 ```bash
 # Claude agent evaluation (8 mock data cases)
-PYTHONIOENCODING=utf-8 python -m agents.eval_agent
+PYTHONIOENCODING=utf-8 python -m tests.db_eval_agent
 ```
 
 ### Test Cases
@@ -109,14 +109,12 @@ Both agents produce identical correct results on the 8 mock data scenarios:
 refi-agent/
 ├── agents/
 │   ├── claude_refi_agent.py        # Claude Sonnet agent (prompted, tool-calling)
-│   ├── novalite_refi_agent.py     # Nova Lite agent (fine-tuned, single call)
-│   └── eval_agent.py              # Evaluation harness
+│   └── novalite_refi_agent.py     # Nova Lite agent (fine-tuned, single call)
 ├── tools/
 │   └── refi_database_tools.py     # Shared data access layer (PostgreSQL)
 ├── scripts/
 │   ├── generate_training_data.py  # Synthetic training data generator
 │   ├── launch_fine_tuning.py      # Bedrock fine-tuning job management
-│   ├── test_claude_accuracy.py    # Accuracy testing against training data
 │   └── lib/
 │       ├── decision_engine.py     # Deterministic rule engine (ground truth)
 │       ├── rules.py               # FHA/VA underwriting rules
@@ -128,7 +126,13 @@ refi-agent/
 │   └── settings.py                # Environment-aware configuration
 ├── mock_data/
 │   └── refi_init.sql              # 8 test loan scenarios
-├── tests/                         # Unit tests
+├── tests/
+│   ├── accuracy_test_harness.py   # Accuracy testing against training data
+│   ├── db_eval_agent.py           # DB integration eval (8 mock cases)
+│   ├── heldout_eval_cases.json    # 20 held-out cases (never in training data)
+│   ├── heldout_test_agent.py      # Runs held-out cases against Nova Lite
+│   ├── test_decisions.py          # Decision engine unit tests
+│   └── test_rules.py              # Rule validation unit tests
 ├── docker-compose.yml             # PostgreSQL
 ├── Dockerfile                     # Production container (AgentCore-ready)
 └── requirements.txt

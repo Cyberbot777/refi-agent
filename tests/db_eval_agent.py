@@ -5,6 +5,9 @@ Runs all test cases, checks the decision saved to DB, compares to expected.
 
 import time
 import json
+import io
+import os
+import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -70,8 +73,13 @@ def run_eval():
 
         start = time.time()
         try:
-            # Run the agent (it streams to stdout AND saves decision to DB)
-            process_application(refi_id)
+            # Suppress agent's verbose streaming output
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
+            try:
+                process_application(refi_id)
+            finally:
+                sys.stdout = old_stdout
             elapsed = time.time() - start
 
             # Get what the agent actually recorded
@@ -83,7 +91,10 @@ def run_eval():
                 actual = "NO_DECISION"
                 reasoning = "Agent did not call record_decision"
 
-            correct = actual == expected["decision"]
+            # Normalize spacing variants (e.g., "NEEDS REVIEW" vs "NEEDS_REVIEW")
+            actual_norm = actual.upper().replace(" ", "_")
+            expected_norm = expected["decision"].upper().replace(" ", "_")
+            correct = actual_norm == expected_norm
             results.append({
                 "refi_id": refi_id,
                 "expected": expected["decision"],

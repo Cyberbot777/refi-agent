@@ -57,7 +57,7 @@ SYSTEM_PROMPT = (
 )
 
 
-# ─── DATA FORMATTING ───────────────────────────────────────────────────────────
+# DATA FORMATTING
 
 def format_loan_for_model(loan_json: str) -> str:
     """
@@ -152,7 +152,7 @@ def format_loan_for_model(loan_json: str) -> str:
     return "\n".join(lines)
 
 
-# ─── INFERENCE ──────────────────────────────────────────────────────────────────
+# INFERENCE
 
 def call_model(user_text: str) -> str:
     """Single inference call to the fine-tuned Nova Lite model."""
@@ -183,7 +183,7 @@ def extract_decision(text: str) -> str:
     return "UNKNOWN"
 
 
-# ─── MAIN ──────────────────────────────────────────────────────────────────────
+# MAIN
 
 def process_application(refi_id: str) -> str:
     """
